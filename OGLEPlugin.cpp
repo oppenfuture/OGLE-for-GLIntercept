@@ -103,8 +103,7 @@ void OGLEPlugin::ProcessConfigData(ConfigParser *parser)
   if(testToken)
   {
 	  testToken->Get(objFileName);
-	  int pos;
-	  if((pos = objFileName.find(".obj", objFileName.size() - 4)) == (objFileName.size() - 4)) {
+	  if(objFileName.find(".obj", objFileName.size() - 4) == (objFileName.size() - 4)) {
 		  objFileName = objFileName.substr(0, objFileName.size() - 4);
 	  }
 
@@ -163,36 +162,19 @@ isRecording(0)
 {
 
 /**/
-  gliCallBacks->RegisterGLFunction("glBegin");
-  gliCallBacks->RegisterGLFunction("glEnd");
-  gliCallBacks->RegisterGLFunction("glArrayElement");
-  gliCallBacks->RegisterGLFunction("glVertex3fv");
-  gliCallBacks->RegisterGLFunction("glVertex3f");
-  gliCallBacks->RegisterGLFunction("glVertex3dv");
-  gliCallBacks->RegisterGLFunction("glVertex3d");
-  gliCallBacks->RegisterGLFunction("glNormal3fv");
-  gliCallBacks->RegisterGLFunction("glNormal3f");
-  gliCallBacks->RegisterGLFunction("glTexCoord2fv");
-  gliCallBacks->RegisterGLFunction("glTexCoord3fv");
-  gliCallBacks->RegisterGLFunction("glTexCoord2f");
-  gliCallBacks->RegisterGLFunction("glTexCoord3f");
-  gliCallBacks->RegisterGLFunction("glClientActiveTexture");
-  gliCallBacks->RegisterGLFunction("glClientActiveTextureARB");
+  gliCallBacks->RegisterGLFunction("glBindVertexArray");
+  gliCallBacks->RegisterGLFunction("glEnableVertexAttribArray");
+  gliCallBacks->RegisterGLFunction("glDisableVertexAttribArray");
+  gliCallBacks->RegisterGLFunction("glVertexAttribPointer");
+  gliCallBacks->RegisterGLFunction("glVertexAttribIPointer");
+  gliCallBacks->RegisterGLFunction("glVertexAttribLPointer");
 
-
-  gliCallBacks->RegisterGLFunction("glEnableClientState");
-  gliCallBacks->RegisterGLFunction("glDisableClientState");
-  gliCallBacks->RegisterGLFunction("glVertexPointer");
-  gliCallBacks->RegisterGLFunction("glNormalPointer");
-  gliCallBacks->RegisterGLFunction("glTexCoordPointer");
   gliCallBacks->RegisterGLFunction("glDrawArrays");
   gliCallBacks->RegisterGLFunction("glDrawElements");
 
-  gliCallBacks->RegisterGLFunction("glInterleavedArrays");
-
-
   gliCallBacks->RegisterGLFunction("glDrawRangeElements");
   gliCallBacks->RegisterGLFunction("glDrawRangeElementsEXT");
+  gliCallBacks->RegisterGLFunction("glDrawElementsBaseVertex");
 
   gliCallBacks->RegisterGLFunction("glLockArraysEXT");
   gliCallBacks->RegisterGLFunction("glUnlockArraysEXT");
@@ -201,6 +183,7 @@ isRecording(0)
   gliCallBacks->RegisterGLFunction("glBindBufferARB");
   gliCallBacks->RegisterGLFunction("glBufferData");
   gliCallBacks->RegisterGLFunction("glBufferDataARB");
+  gliCallBacks->RegisterGLFunction("glBufferStorage");
   gliCallBacks->RegisterGLFunction("glBufferSubData");
   gliCallBacks->RegisterGLFunction("glBufferSubDataARB");
   gliCallBacks->RegisterGLFunction("glMapBuffer");
@@ -264,10 +247,37 @@ void OGLEPlugin::GLFunctionPre (uint updateID, const char *funcName, uint funcIn
 		else if(strcmp(funcName, "glBufferData") == 0
 				|| strcmp(funcName, "glBufferDataARB") == 0) {
 			GLenum  target; _args.Get(target);
-			GLsizei size; _args.Get(size);
+			GLsizeiptr size; _args.Get(size);
 			GLvoid * data; _args.Get(data);
 			GLenum  usage; _args.Get(usage);
 			ogle->glBufferData(target , size , data , usage);
+		} else if (strcmp(funcName, "glBufferStorage") == 0) {
+			GLenum target; _args.Get(target);
+ 			GLsizeiptr size; _args.Get(size);
+ 			const GLvoid * data; _args.Get(data);
+ 			GLbitfield flags; _args.Get(flags);
+			ogle->glBufferStorage(target, size, data, flags);
+		} else if (strcmp(funcName, "glBindVertexArray") == 0) {
+			GLuint array; _args.Get(array);
+			ogle->glBindVertexArray(array);
+		} else if (strcmp(funcName, "glEnableVertexAttribArray") == 0) {
+			GLuint index; _args.Get(index);
+			ogle->glEnableVertexAttribArray(index);
+		} else if (strcmp(funcName, "glDisableVertexAttribArray") == 0) {
+			GLuint index; _args.Get(index);
+			ogle->glDisableVertexAttribArray(index);
+		} else if (strcmp(funcName, "glVertexAttribPointer") == 0
+			|| strcmp(funcName, "glVertexAttribIPointer") == 0
+			|| strcmp(funcName, "glVertexAttribLPointer") == 0) {
+			GLuint index; _args.Get(index);
+			GLint size; _args.Get(size);
+			GLenum type; _args.Get(type);
+			GLboolean normalized = false;
+			if (strcmp(funcName, "glVertexAttribPointer") == 0)
+				_args.Get(normalized);
+			GLsizei stride; _args.Get(stride);
+			const GLvoid *pointer; _args.Get(pointer);
+			ogle->glVertexAttribPointer(index, size, type, normalized, stride, pointer);
 		}
 
 
@@ -280,7 +290,7 @@ void OGLEPlugin::GLFunctionPre (uint updateID, const char *funcName, uint funcIn
 					|| strcmp(funcName, "glBufferSubDataARB") == 0) {
 				GLenum  target; _args.Get(target);
 				GLint offset; _args.Get(offset);
-				GLsizei  size; _args.Get(size);
+				GLsizeiptr  size; _args.Get(size);
 				GLvoid * data; _args.Get(data);
 				ogle->glBufferSubData(target , offset , size , data);
 			}
@@ -338,104 +348,13 @@ void OGLEPlugin::GLFunctionPre (uint updateID, const char *funcName, uint funcIn
 		GLenum  type; _args.Get(type);
 		GLvoid * indices; _args.Get(indices);
 		ogle->glDrawRangeElements(mode , start , end , count , type , indices);
-	}
-	else if(strcmp(funcName, "glBegin") == 0) {
-		GLenum  mode; _args.Get(mode);
-		ogle->glBegin(mode);
-	}
-	else if(strcmp(funcName, "glEnd") == 0) {
-		ogle->glEnd();
-	}
-	else if(strcmp(funcName, "glArrayElement") == 0) {
-		GLint i; _args.Get(i);
-		ogle->glArrayElement(i);
-	}
-	else if(strcmp(funcName, "glVertex3fv") == 0) {
-		//GLfloat *V; _args.Get(V);
-		void *V; _args.Get(V);
-		ogle->glVertexfv((GLfloat *)V, 3);
-	}
-	else if(strcmp(funcName, "glVertex3f") == 0) {
-		GLfloat V[3]; _args.Get(*V); _args.Get(*(V+1)); _args.Get(*(V+2));
-		ogle->glVertexfv(V, 3);
-	}
-	else if(strcmp(funcName, "glVertex3dv") == 0) {
-		//GLdouble *V; _args.Get(V);
-		void *VV; _args.Get(VV);
-		GLdouble *V = (GLdouble *)VV;
-		GLfloat tmp[3]; tmp[0] = V[0]; tmp[1] = V[1]; tmp[2] = V[2];
-		ogle->glVertexfv(tmp, 3);
-	}
-	else if(strcmp(funcName, "glVertex3d") == 0) {
-		GLdouble V[3]; _args.Get(*V); _args.Get(*(V+1)); _args.Get(*(V+2));
-		GLfloat tmp[3]; tmp[0] = V[0]; tmp[1] = V[1]; tmp[2] = V[2];
-		ogle->glVertexfv(tmp, 3);
-	}
-	else if(strcmp(funcName, "glNormal3fv") == 0) {
-		//GLfloat *V; _args.Get(V);
-		void *V; _args.Get(V);
-		ogle->glNormalfv((GLfloat *)V, 3);
-	}
-	else if(strcmp(funcName, "glNormal3f") == 0) {
-		GLfloat V[3]; _args.Get(*V); _args.Get(*(V+1)); _args.Get(*(V+2));
-		ogle->glNormalfv(V, 3);
-	}
-	else if(strcmp(funcName, "glTexCoord3fv") == 0) {
-		//GLfloat *V; _args.Get(V);
-		void *V; _args.Get(V);
-		ogle->glTexCoordfv((GLfloat *)V, 3);
-	}
-	else if(strcmp(funcName, "glTexCoord2fv") == 0) {
-		//GLfloat *V; _args.Get(V);
-		void *V; _args.Get(V);
-		ogle->glTexCoordfv((GLfloat *)V, 2);
-	}
-	else if(strcmp(funcName, "glTexCoord3f") == 0) {
-		GLfloat V[3]; _args.Get(*V); _args.Get(*(V+1)); _args.Get(*(V+2));
-		ogle->glTexCoordfv(V, 3);
-	}
-	else if(strcmp(funcName, "glTexCoord2f") == 0) {
-		GLfloat V[2]; _args.Get(*V); _args.Get(*(V+1));
-		ogle->glTexCoordfv(V, 2);
-	}
-	else if(strcmp(funcName, "glEnableClientState") == 0) {
-		GLenum array; _args.Get(array);
-		ogle->glEnableClientState(array);		
-	}
-	else if(strcmp(funcName, "glDisableClientState") == 0) {
-		GLenum array; _args.Get(array);
-		ogle->glDisableClientState(array);
-	}
-	else if(strcmp(funcName, "glClientActiveTexture") == 0
-		|| strcmp(funcName, "glClientActiveTextureARB") == 0) {
-		GLenum texture; _args.Get(texture);
-		ogle->glClientActiveTexture(texture);
-	}
-	else if(strcmp(funcName, "glVertexPointer") == 0) {
-		GLint size; _args.Get(size);
-		GLenum type; _args.Get(type);
-		GLsizei stride; _args.Get(stride);
-		GLvoid *pointer; _args.Get(pointer);
-		ogle->glVertexPointer(size , type , stride , pointer);
-	}
-	else if(strcmp(funcName, "glNormalPointer") == 0) {
-		GLenum type; _args.Get(type);
-		GLsizei stride; _args.Get(stride);
-		GLvoid *pointer; _args.Get(pointer);
-		ogle->glNormalPointer(type , stride , pointer);
-	}
-	else if(strcmp(funcName, "glTexCoordPointer") == 0) {
-		GLint size; _args.Get(size);
-		GLenum type; _args.Get(type);
-		GLsizei stride; _args.Get(stride);
-		GLvoid *pointer; _args.Get(pointer);
-		ogle->glTexCoordPointer(size , type , stride , pointer);
-	}
-	else if(strcmp(funcName, "glInterleavedArrays") == 0) {
-		GLenum format; _args.Get(format);
-		GLsizei stride; _args.Get(stride);
-		GLvoid *pointer; _args.Get(pointer);
-		ogle->glInterleavedArrays(format , stride , pointer);
+	} else if (strcmp(funcName, "glDrawElementsBaseVertex") == 0) {
+		GLenum mode; _args.Get(mode);
+ 		GLsizei count; _args.Get(count);
+ 		GLenum type; _args.Get(type);
+ 		GLvoid *indices; _args.Get(indices);
+ 		GLint basevertex; _args.Get(basevertex);
+		ogle->glDrawElementsBaseVertex(mode, count, type, indices, basevertex);
 	}
 	
 

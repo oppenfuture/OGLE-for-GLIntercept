@@ -15,12 +15,14 @@
 #include <deque>
 #include <map>
 #include <string>
+#include <array>
 
 
 #define OGLE_BIND_BUFFERS_ALL_FRAMES 1
 #define OGLE_CAPTURE_BUFFERS_ALL_FRAMES 0
 
 #define OGLE_N_BUFFERS (4096*2)
+#define OGLE_N_VAOS (4096)
 
 #include "Ptr/Interface.h"
 #include "Ptr/Ptr.h"
@@ -31,10 +33,9 @@ class OGLE : public Interface {
 
 public:
 
-	// Classes for 4x4 Matrices and 4x1 Vectors, 
+	// Classes for 4x1 Vectors,
 	// the typical mathematical components of OpenGL calculations
 
-	typedef mtl::matrix < float >::type Transform;
     typedef mtl::dense1D < float > Vector;
 
 	//////////////////////////////////////////////////////////////////////
@@ -59,12 +60,12 @@ public:
 	typedef Ptr<Vertex> VertexPtr;
 
 	//////////////////////////////////////////////////////////////////////
-	// OGLE::Element -- Class for an OpenGL 'Element' which can have a 
+	// OGLE::Element -- Class for an OpenGL 'Element' which can have a
 	// Vertex (location), as well as a Normal and a Texture coordinate
 	//////////////////////////////////////////////////////////////////////
 
 	class Element : public Interface {
-		public:	
+		public:
 			Element() { v = 0; t = 0; n = 0; }
 
 			Element(VertexPtr _v, VertexPtr _t = 0, VertexPtr _n = 0) {
@@ -75,17 +76,12 @@ public:
 	};
 	typedef Ptr<Element> ElementPtr;
 
-	typedef std::vector<ElementPtr> ElementVec;
-	typedef std::vector<VertexPtr> VertexVec;
-
-
 	//////////////////////////////////////////////////////////////////////
-	// OGLE::ElementSet -- Class for a set of OpenGL vertices
-	//////////////////////////////////////////////////////////////////////	
+	// OGLE::ElementSet -- Class for a set of OpenGL vertices and indices
+	//////////////////////////////////////////////////////////////////////
 
 	class ElementSet : public Interface {
 		public:
-			ElementSet(GLenum _mode, Transform _transform, Transform _texCoordTransform);
 			ElementSet(GLenum _mode);
 
   			// add a Element with just a location Vertex
@@ -93,21 +89,17 @@ public:
 			void addElement(VertexPtr V);
 			void addElement(ElementPtr E);
 
-			bool hasTransform;
-			Transform transform;	
-			Transform texCoordTransform;	
-			//vector<VertexPtr> vertices;
-
-			vector<ElementPtr> elements;
+			std::vector<ElementPtr> elements;
 
 			GLenum mode;
+			std::vector<GLuint> indices;
 	};
 	typedef Ptr<ElementSet> ElementSetPtr;
 
 
 	//////////////////////////////////////////////////////////////////////
 	// OGLE::Blob -- Class for polymorphic storage of small primitive types
-	//////////////////////////////////////////////////////////////////////	
+	//////////////////////////////////////////////////////////////////////
 
 	class Blob : public Interface {
 		private:
@@ -115,59 +107,72 @@ public:
 
 		public:
 			Blob(const GLint v) { *((GLint *)d) = v; }
-			const GLint toInt() { return *((GLint *)d); } 
-			const GLuint toUInt() { return *((GLuint *)d); } 
-			const GLsizei toSizeI() { return *((GLsizei *)d); } 
+			const GLint toInt() { return *((GLint *)d); }
+			const GLuint toUInt() { return *((GLuint *)d); }
+			const GLsizei toSizeI() { return *((GLsizei *)d); }
 
 			Blob(const GLboolean v) { *((GLboolean *)d) = v; }
-			const GLboolean toBool() { return *((GLboolean *)d); } 
+			const GLboolean toBool() { return *((GLboolean *)d); }
 
 			Blob(const GLfloat v) { *((GLfloat *)d) = v; }
-			const GLfloat toFloat() { return *((GLfloat *)d); } 
-			
-			Blob(const GLenum v) { *((GLenum *)d) = v; }
-			const GLenum toEnum() { return *((GLenum *)d); } 
-			
-			Blob(const GLvoid *v) {*((const GLvoid **)d) = v;}
-			const GLvoid * toVoidP() { return *((const GLvoid **)d);}			
-	};
-			
-	typedef Ptr<Blob> BlobPtr;
+			const GLfloat toFloat() { return *((GLfloat *)d); }
 
+			Blob(const GLenum v) { *((GLenum *)d) = v; }
+			const GLenum toEnum() { return *((GLenum *)d); }
+
+			Blob(const GLvoid *v) {*((const GLvoid **)d) = v;}
+			const GLvoid * toVoidP() { return *((const GLvoid **)d);}
+	};
+
+	typedef Ptr<Blob> BlobPtr;
 
 	//////////////////////////////////////////////////////////////////////
 	// OGLE::Buffer -- Class for a buffer
-	//////////////////////////////////////////////////////////////////////	
+	//////////////////////////////////////////////////////////////////////
 
 	class Buffer : public Interface {
 		public:
 			GLvoid *ptr;
-			GLsizei size;
+			GLsizeiptr size;
 
 			GLvoid *map;
 			GLenum mapAccess;
 
-			inline Buffer(const GLvoid *_ptr, GLsizei _size);
+			inline Buffer(const GLvoid *_ptr, GLsizeiptr _size);
 			inline ~Buffer();
 	};
-				
+
 	typedef Ptr<Buffer> BufferPtr;
 
+	//////////////////////////////////////////////////////////////////////
+	// OGLE::AttribDesc -- Struct for an attribute description
+	//////////////////////////////////////////////////////////////////////
 
-	class CArray : public Interface {
+	struct AttribDesc {
+		GLboolean enabled;
+		GLuint buffer_index;
+		GLint size;
+		GLenum type;
+		GLboolean normalized;
+		GLsizei stride;
+		const GLvoid *pointer;
 
-	  public:
-		GLboolean	enabled;
-		GLint		size;
-		GLenum		type;
-		GLsizei		stride;
-		const GLbyte*	data;
-
-		inline CArray();
+		inline AttribDesc();
 	};
 
-	typedef Ptr<CArray> CArrayPtr;
+	//////////////////////////////////////////////////////////////////////
+	// OGLE::VAO -- Class for a vertex array object
+	//////////////////////////////////////////////////////////////////////
 
+	class VAO : public Interface {
+		public:
+			std::array<AttribDesc, 16> attrib_descs;
+			GLuint index_buffer_index;
+
+			inline VAO();
+	};
+
+	typedef Ptr<VAO> VAOPtr;
 
 	struct ltstr
 	{
@@ -178,16 +183,16 @@ public:
 
 	//////////////////////////////////////////////////////////////////////
 	// OGLE::Config -- Class for all OGLE config options
-	//////////////////////////////////////////////////////////////////////	
+	//////////////////////////////////////////////////////////////////////
 
 	struct Config {
-		public: 
+		public:
 			float scale;
 			bool logFunctions;
 			bool captureNormals;
 			bool captureTexCoords;
 			bool flipPolyStrips;
-			map<const char*, bool, ltstr>polyTypesEnabled;			
+			map<const char*, bool, ltstr>polyTypesEnabled;
 
 			static char *polyTypes[];
 			static int nPolyTypes;
@@ -203,51 +208,38 @@ public:
 
 	OGLE(InterceptPluginCallbacks *_callBacks, const GLCoreDriver *_GLV);
 
-		
+
 	void startRecording(string _objFileName);
 	void stopRecording();
 
 	void addSet(ElementSetPtr set);
 	void newSet(GLenum mode);
 
-	void glBegin (GLenum mode);
-	void glEnd ();
+	void glBindVertexArray(GLuint array);
+	void glEnableVertexAttribArray(GLuint index);
+	void glDisableVertexAttribArray(GLuint index);
+	void glVertexAttribPointer(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
 
-	void glVertexfv(GLfloat *V, GLsizei n);
-	void glNormalfv(GLfloat *V, GLsizei n);
-	void glTexCoordfv(GLfloat *V, GLsizei n);
-
-	void glArrayElement (GLint i);
 	void glDrawElements (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
 	void glDrawArrays (GLenum mode, GLint first, GLsizei count);
-	void glEnableClientState (GLenum array);
-	void glDisableClientState (GLenum array);
-	void glVertexPointer (GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
-	void glNormalPointer (GLenum type, GLsizei stride, const GLvoid *pointer);
-
-	void glInterleavedArrays(GLenum format, GLsizei stride, const GLvoid *pointer);
-
-
-	void glClientActiveTexture(GLenum texture);
-	void glTexCoordPointer (GLint	size, GLenum type, GLsizei stride, const GLvoid *pointer);
-	
-
 	void glDrawRangeElements(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices);
+	void glDrawElementsBaseVertex(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLint basevertex);
+
 	void glLockArraysEXT(GLint first, GLsizei count);
 	void glUnlockArraysEXT();
 	void glBindBuffer(GLenum target, GLuint buffer);
-	void glBufferData(GLenum target, GLsizei size, const GLvoid *data, GLenum usage);
-	void glBufferSubData(GLenum target, GLint offset, GLsizei size, const GLvoid *data);
+	void glBufferData(GLenum target, GLsizeiptr size, const GLvoid *data, GLenum usage);
+	void glBufferStorage(GLenum target, GLsizeiptr size, const GLvoid *data, GLbitfield flags);
+	void glBufferSubData(GLenum target, GLint offset, GLsizeiptr size, const GLvoid *data);
 	void glMapBuffer(GLenum target, GLenum access);
 	void glMapBufferPost(GLvoid *retValue);
 	void glUnmapBuffer(GLenum target);
 
 	void initFunctions();
-	Transform getCurrTransform(GLenum type = GL_MODELVIEW_MATRIX);
-
-	GLint derefClientArray(CArray *arr, GLfloat *v, GLint i);
 
 	GLuint getBufferIndex(GLenum target);
+	GLuint getVertexArrayIndex();
+	VAOPtr getVertexArray();
 	const GLbyte *OGLE::getBufferedArray(const GLbyte *array);
 	const GLvoid *getBufferedIndices(const GLvoid *indices);
 	void checkBuffers();
@@ -260,26 +252,18 @@ public:
     const GLCoreDriver       *GLV;                  //The core OpenGL driver
 	std::map<const char*, BlobPtr, ltstr> glState;
 
-	CArray vArray;
-	CArray nArray;
-	CArrayPtr tArray;
-	CArrayPtr tArrayActive;
-	
-	std::vector<CArrayPtr> tArrays;
-	GLint activeClientTex;
-
 	std::vector<BufferPtr> buffers;
+	std::vector<VAOPtr> vaos;
 
 	bool extensionVBOSupported;
-	void    (GLAPIENTRY *iglGetBufferSubData) (GLenum, GLint, GLsizei, GLvoid *);
+	void    (GLAPIENTRY *iglGetBufferSubData) (GLenum, GLint, GLsizeiptr, GLvoid *);
 
     Ptr<ElementSet> currSet;
-    VertexPtr currTexCoord, currNormal;
 	std::vector<ElementSetPtr> sets;
 
 
 	string objFileName;
-
+	int objIndex;
 	Ptr<ObjFile> objFile;
 
 
@@ -289,11 +273,8 @@ public:
 
 	static void init();
 
-	static GLfloat derefVertexArray(const GLbyte *array, GLint dim, GLenum type, GLsizei stride, GLint vindex, GLint index);
-	static GLint derefIndexArray(GLenum type, const GLvoid *indices, int i);
+	static GLuint derefIndexArray(GLenum type, const GLvoid *indices, int i);
 
-	static VertexPtr doTransform(VertexPtr vp, Transform T);
-	static bool isIdentityTransform(Transform T);
 	static GLsizei glTypeSize(GLenum type);
 
 	static FILE *LOG;
@@ -302,18 +283,6 @@ public:
 
 typedef Ptr<OGLE> OGLEPtr;
 
-
-
-
-
-
-OGLE::CArray::CArray() {
-	enabled = false;
-	size = 4;
-	type = GL_FLOAT;
-	stride = 0;
-	data = NULL;
-}
 
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -359,9 +328,9 @@ void OGLE::Vertex::fromVector(Vector v) {
 	case 4: w = v[3];
 	case 3: z = v[2];
 	case 2: y = v[1];
-	case 1: x = v[0];				
+	case 1: x = v[0];
 	}
-	size = v.size();
+	size = (GLbyte)v.size();
 }
 
 
@@ -371,7 +340,21 @@ OGLE::Vector OGLE::Vertex::toVector() {
 	return v;
 }
 
-OGLE::Buffer::Buffer(const GLvoid *_ptr, GLsizei _size) {
+OGLE::AttribDesc::AttribDesc() {
+	enabled = false;
+	buffer_index = 0;
+	size = 4;
+	type = GL_FLOAT;
+	normalized = false;
+	stride = 0;
+	pointer = 0;
+}
+
+OGLE::VAO::VAO() {
+	index_buffer_index = 0;
+}
+
+OGLE::Buffer::Buffer(const GLvoid *_ptr, GLsizeiptr _size) {
 	size = _size;
 	ptr = malloc(size);
 
@@ -389,13 +372,13 @@ OGLE::Buffer::~Buffer() {
 
 
 
-OGLE::Config::Config() : scale(1), logFunctions(0), 
-						 captureNormals(0), captureTexCoords(0), 
+OGLE::Config::Config() : scale(1), logFunctions(0),
+						 captureNormals(0), captureTexCoords(0),
 						 flipPolyStrips(1) {
 	for(int i = 0; i < OGLE::Config::nPolyTypes; i++) {
 		const char *type = OGLE::Config::polyTypes[i];
 		polyTypesEnabled[type] = 1;
-	}						
+	}
 }
 
 
